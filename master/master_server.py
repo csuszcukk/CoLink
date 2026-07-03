@@ -13,10 +13,12 @@ from datetime import datetime, timedelta
 import httpx
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, validator
 import GPUtil
 import uvicorn
+
+# IMPORT THE PROMPTS FROM YOUR PROMPTS.PY FILE
+from prompts import SYSTEM_PROMPT_LEADER_SPLIT, SYSTEM_PROMPT_CODER, SYSTEM_PROMPT_AGGREGATOR
 
 logging.basicConfig(
     level=logging.INFO,
@@ -275,7 +277,8 @@ class MasterState:
                 task.started_at = datetime.utcnow()
 
             try:
-                result = await self._call_agent(agent, task, submission)
+                # FIXED: Pass project_id correctly into the call
+                result = await self._call_agent(agent, task, submission, project_id)
                 async with self._lock:
                     task.status = TaskStatus.COMPLETED
                     task.result = result
@@ -303,7 +306,10 @@ class MasterState:
             capable = agents
         return max(capable, key=lambda a: a.weight) if capable else None
 
-    async def _call_agent(self, agent: AgentInfo, task: SubTask, submission: TaskSubmission) -> str:
+    # FIXED: Added project_id parameter to pull context accurately
+    async def _call_agent(self, agent: AgentInfo, task: SubTask, submission: TaskSubmission, project_id: str) -> str:
+        completed_dependencies = self.task_results.get(project_id, {})
+        
         prompt = f"""TASK: {task.title}
 DESCRIPTION: {task.description}
 FILE PATHS: {', '.join(task.file_paths)}
@@ -312,7 +318,7 @@ COMPLEXITY: {task.complexity}/10
 ESTIMATED TOKENS: {task.estimated_tokens}
 
 DEPENDENCIES COMPLETED:
-{json.dumps(self.task_results[submission.project_id], indent=2) if hasattr(submission, 'project_id') else 'N/A'}
+{json.dumps(completed_dependencies, indent=2)}
 
 PROJECT CONTEXT:
 {submission.prompt}
@@ -530,13 +536,19 @@ async def list_agents():
 
 @app.get("/health")
 async def master_health():
-    gpus = GPUtil.getGPUs()
+    # FIXED: Added try-except fallback for Jetson Nano embedded GPU environment
+    try:
+        gpus = GPUtil.getGPUs()
+        gpu_count = len(gpus)
+    except Exception:
+        gpu_count = 0
+        
     return {
         "status": "healthy",
         "agents": len(state.agents),
         "healthy_agents": len(state.get_healthy_agents()),
         "active_project": state.active_project,
-        "gpu_count": len(gpus)
+        "gpu_count": gpu_count
     }
 
 
