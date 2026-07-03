@@ -12,7 +12,8 @@ CRITICAL RULES:
    - "estimated_tokens": integer (rough token estimate for the agent)
    - "required_capabilities": array of strings (e.g., ["python", "async", "database", "ui", "ml"])
    - "file_paths": array of strings (relative paths this subtask will create/modify)
-
+4. DO NOT copy the example subtasks or file paths. Generate unique subtasks and paths specific ONLY to the user's project request.
+   
 DECOMPOSITION PRINCIPLES:
 - Maximize parallelism: minimize dependencies, group independent work
 - Balance workload: distribute complexity evenly across subtasks
